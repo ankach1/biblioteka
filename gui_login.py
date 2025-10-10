@@ -62,3 +62,4 @@ def show_login():
     tk.Button(root, text="Rejestruj", command=register).pack()
 
     root.mainloop()
+.

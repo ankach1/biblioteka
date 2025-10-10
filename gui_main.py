@@ -82,3 +82,4 @@ def show_main(username):
 
     load_items()
     root.mainloop()
+.
