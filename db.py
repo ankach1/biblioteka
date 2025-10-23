@@ -40,7 +40,7 @@ def init_db():
     )
     """)
 
-    # ✅ Dodanie konta administratora (jeśli nie istnieje)
+    #  Dodanie konta administratora (jeśli nie istnieje)
     admin_user = "admin"
     admin_pass = hash_password("admin")
     c.execute("SELECT * FROM users WHERE username=?", (admin_user,))
@@ -51,7 +51,7 @@ def init_db():
         )
         print("✔ Utworzono domyślne konto admin (login: admin, hasło: admin)")
 
-    # ✅ Dodanie przykładowych książek (tylko jeśli tabela jest pusta)
+    #  Dodanie przykładowych książek (tylko jeśli tabela jest pusta)
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
         sample_books = [
