@@ -1,12 +1,12 @@
 import tkinter as tk
 from tkinter import messagebox
 from db import get_connection
+import gui_login  # import do funkcji logout
 
 def show_main(username):
     root = tk.Tk()
     root.title("Panel główny - Wypożyczalnia")
     root.geometry("600x400")
-    root.resizable(True, True)
 
     tk.Label(root, text=f"Witaj, {username}!", font=("Arial", 14)).pack(pady=10)
 
@@ -32,16 +32,13 @@ def show_main(username):
 
         conn = get_connection()
         c = conn.cursor()
-        # sprawdzamy dostępność
         c.execute("SELECT available FROM items WHERE id=?", (item_id,))
         available = c.fetchone()[0]
         if available == 0:
             messagebox.showerror("Błąd", "Ta pozycja jest już wypożyczona!")
         else:
-            # znajdź ID użytkownika
             c.execute("SELECT id FROM users WHERE username=?", (username,))
             user_id = c.fetchone()[0]
-            # dodaj wypożyczenie
             c.execute("INSERT INTO rentals(user_id, item_id) VALUES (?, ?)", (user_id, item_id))
             c.execute("UPDATE items SET available=0 WHERE id=?", (item_id,))
             conn.commit()
@@ -58,7 +55,6 @@ def show_main(username):
 
         conn = get_connection()
         c = conn.cursor()
-        # sprawdzamy czy user wypożyczył tę pozycję
         c.execute("""
         SELECT r.id FROM rentals r
         JOIN users u ON r.user_id=u.id
@@ -76,9 +72,14 @@ def show_main(username):
         conn.close()
         load_items()
 
+    def logout():
+        root.destroy()
+        gui_login.show_login()
+
     tk.Button(root, text="Odśwież listę", command=load_items).pack()
     tk.Button(root, text="Wypożycz", command=rent_item).pack()
     tk.Button(root, text="Zwróć", command=return_item).pack()
+    tk.Button(root, text="Wyloguj", command=logout).pack(pady=5)
 
     load_items()
     root.mainloop()

@@ -1,7 +1,7 @@
 import sqlite3
+from utils import hash_password
 
 DB_NAME = "wypozyczalnia.db"
-
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -16,10 +16,8 @@ def init_db():
         role TEXT NOT NULL DEFAULT 'user'
     )
     """)
-    c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-              ('Anka', 'Haslo', 'admin'))
 
-    # Tabela zasobów (książki/filmy)
+    # Tabela zasobów
     c.execute("""
     CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +27,7 @@ def init_db():
     )
     """)
 
-    # Tabela wypożyczeń (relacje user <-> item)
+    # Tabela wypożyczeń
     c.execute("""
     CREATE TABLE IF NOT EXISTS rentals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,10 +40,34 @@ def init_db():
     )
     """)
 
+    # ✅ Dodanie konta administratora (jeśli nie istnieje)
+    admin_user = "admin"
+    admin_pass = hash_password("admin")
+    c.execute("SELECT * FROM users WHERE username=?", (admin_user,))
+    if not c.fetchone():
+        c.execute(
+            "INSERT INTO users(username, password, role) VALUES (?, ?, 'admin')",
+            (admin_user, admin_pass)
+        )
+        print("✔ Utworzono domyślne konto admin (login: admin, hasło: admin)")
+
+    # ✅ Dodanie przykładowych książek (tylko jeśli tabela jest pusta)
+    c.execute("SELECT COUNT(*) FROM items")
+    if c.fetchone()[0] == 0:
+        sample_books = [
+            ("Pan Tadeusz", "Adam Mickiewicz"),
+            ("Lalka", "Bolesław Prus"),
+            ("Quo Vadis", "Henryk Sienkiewicz"),
+            ("Krzyżacy", "Henryk Sienkiewicz"),
+            ("Wesele", "Stanisław Wyspiański"),
+            ("Ferdydurke", "Witold Gombrowicz"),
+            ("Solaris", "Stanisław Lem")
+        ]
+        c.executemany("INSERT INTO items(title, author) VALUES (?, ?)", sample_books)
+        print("✔ Dodano przykładowe polskie książki do bazy.")
+
     conn.commit()
     conn.close()
 
-
 def get_connection():
     return sqlite3.connect(DB_NAME)
-
