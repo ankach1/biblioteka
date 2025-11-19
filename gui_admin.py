@@ -94,6 +94,68 @@ def show_admin():
         messagebox.showinfo("Sukces", "Usunięto książkę.")
         load_items()
 
+    # --- Funkcja edycji książki ---
+    def edit_item():
+        selection = listbox_items.curselection()
+        if not selection:
+            messagebox.showerror("Błąd", "Wybierz książkę do edycji!")
+            return
+
+        item_data = listbox_items.get(selection[0]).split(".")
+        item_id = item_data[0]
+
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT title, author, available FROM items WHERE id=?", (item_id,))
+        book = c.fetchone()
+        conn.close()
+
+        if not book:
+            messagebox.showerror("Błąd", "Nie znaleziono książki w bazie!")
+            return
+
+        # Okno edycji
+        edit_window = tk.Toplevel(root)
+        edit_window.title("Edytuj książkę")
+        edit_window.geometry("400x200")
+
+        tk.Label(edit_window, text="Tytuł:").grid(row=0, column=0, sticky="e", pady=5, padx=5)
+        entry_edit_title = tk.Entry(edit_window, width=40)
+        entry_edit_title.grid(row=0, column=1, pady=5)
+        entry_edit_title.insert(0, book[0])
+
+        tk.Label(edit_window, text="Autor:").grid(row=1, column=0, sticky="e", pady=5, padx=5)
+        entry_edit_author = tk.Entry(edit_window, width=40)
+        entry_edit_author.grid(row=1, column=1, pady=5)
+        entry_edit_author.insert(0, book[1])
+
+        tk.Label(edit_window, text="Status:").grid(row=2, column=0, sticky="e", pady=5, padx=5)
+        status_var = tk.StringVar()
+        status_var.set("Dostępny" if book[2] == 1 else "Wypożyczony")
+        tk.OptionMenu(edit_window, status_var, "Dostępny", "Wypożyczony").grid(row=2, column=1, pady=5, sticky="w")
+
+        def save_changes():
+            new_title = entry_edit_title.get()
+            new_author = entry_edit_author.get()
+            new_status = 1 if status_var.get() == "Dostępny" else 0
+
+            if not new_title:
+                messagebox.showerror("Błąd", "Tytuł jest wymagany!")
+                return
+
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("UPDATE items SET title=?, author=?, available=? WHERE id=?",
+                      (new_title, new_author, new_status, item_id))
+            conn.commit()
+            conn.close()
+
+            messagebox.showinfo("Sukces", "Zaktualizowano książkę!")
+            edit_window.destroy()
+            load_items()
+
+        tk.Button(edit_window, text="Zapisz zmiany", command=save_changes).grid(row=3, column=0, columnspan=2, pady=10)
+
     # --- Układ GUI ---
 
     # Górny frame dla dodawania książek
@@ -137,6 +199,7 @@ def show_admin():
     frame_item_buttons.pack(pady=5)
     tk.Button(frame_item_buttons, text="Odśwież listę książek", command=load_items).pack(side="left", padx=5)
     tk.Button(frame_item_buttons, text="Usuń książkę", command=delete_item).pack(side="left", padx=5)
+    tk.Button(frame_item_buttons, text="Edytuj książkę", command=edit_item).pack(side="left", padx=5)
     tk.Button(frame_item_buttons, text="Wyloguj", command=logout).pack(side="left", padx=5)
 
     # --- Inicjalne ładowanie danych ---
