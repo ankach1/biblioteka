@@ -1,67 +1,85 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 from db import get_connection
 import gui_login
 
 def show_admin():
     root = tk.Tk()
     root.title("Panel administratora")
-    root.geometry("900x500")
-    root.minsize(800, 600)  # minimalny rozmiar
-    root.resizable(True, True)
+    root.geometry("1400x800")
+    root.minsize(1200, 700)
+    root.configure(bg="#eceff1")
 
-    # --- Funkcje ---
+    # Ustawienia stylu
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure("TButton", padding=6, font=('Helvetica', 10, 'bold'))
+    style.configure("Treeview.Heading", font=('Helvetica', 11, 'bold'))
+
+    #
     def logout():
         root.destroy()
         gui_login.show_login()
 
-    # --- Funkcje użytkowników ---
+    #
     def load_users():
-        listbox_users.delete(0, tk.END)
+        tree_users.delete(*tree_users.get_children())
         conn = get_connection()
         c = conn.cursor()
         c.execute("SELECT id, username, role FROM users")
         for row in c.fetchall():
-            listbox_users.insert(tk.END, f"{row[0]}. {row[1]} [{row[2]}]")
+            tree_users.insert("", "end", iid=row[0], values=(row[1], row[2]))
         conn.close()
 
     def make_admin():
-        selection = listbox_users.curselection()
-        if not selection:
+        sel = tree_users.selection()
+        if not sel:
             messagebox.showerror("Błąd", "Wybierz użytkownika!")
             return
-        user_id = listbox_users.get(selection[0]).split(".")[0]
+        uid = sel[0]
         conn = get_connection()
         c = conn.cursor()
-        c.execute("UPDATE users SET role='admin' WHERE id=?", (user_id,))
+        c.execute("UPDATE users SET role='admin' WHERE id=?", (uid,))
         conn.commit()
         conn.close()
-        messagebox.showinfo("Sukces", "Nadano uprawnienia administratora.")
         load_users()
+        messagebox.showinfo("OK", "Użytkownik został adminem.")
 
     def delete_user():
-        selection = listbox_users.curselection()
-        if not selection:
+        sel = tree_users.selection()
+        if not sel:
             messagebox.showerror("Błąd", "Wybierz użytkownika!")
             return
-        user_id = listbox_users.get(selection[0]).split(".")[0]
+        uid = sel[0]
         conn = get_connection()
         c = conn.cursor()
-        c.execute("DELETE FROM users WHERE id=?", (user_id,))
+        c.execute("DELETE FROM users WHERE id=?", (uid,))
         conn.commit()
         conn.close()
-        messagebox.showinfo("Sukces", "Usunięto użytkownika.")
         load_users()
+        messagebox.showinfo("OK", "Usunięto użytkownika.")
 
     # --- Funkcje książek ---
     def load_items():
-        listbox_items.delete(0, tk.END)
+        tree_items.delete(*tree_items.get_children())
         conn = get_connection()
         c = conn.cursor()
         c.execute("SELECT id, title, author, available FROM items")
         for row in c.fetchall():
-            status = "Dostępny" if row[3] == 1 else "Wypożyczony"
-            listbox_items.insert(tk.END, f"{row[0]}. {row[1]} - {row[2]} [{status}]")
+            tree_items.insert("", "end", iid=row[0],
+                values=(row[1], row[2], "Dostępny" if row[3] == 1 else "Wypożyczony"))
+        conn.close()
+
+    def search_items():
+        query = entry_search.get().lower()
+        tree_items.delete(*tree_items.get_children())
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT id, title, author, available FROM items")
+        for row in c.fetchall():
+            if query in row[1].lower():
+                tree_items.insert("", "end", iid=row[0],
+                    values=(row[1], row[2], "Dostępny" if row[3] == 1 else "Wypożyczony"))
         conn.close()
 
     def add_item():
@@ -75,35 +93,30 @@ def show_admin():
         c.execute("INSERT INTO items(title, author) VALUES (?, ?)", (title, author))
         conn.commit()
         conn.close()
-        messagebox.showinfo("Sukces", "Dodano nową pozycję!")
         entry_title.delete(0, tk.END)
         entry_author.delete(0, tk.END)
         load_items()
 
     def delete_item():
-        selection = listbox_items.curselection()
-        if not selection:
+        sel = tree_items.selection()
+        if not sel:
             messagebox.showerror("Błąd", "Wybierz książkę!")
             return
-        item_id = listbox_items.get(selection[0]).split(".")[0]
+        item_id = sel[0]
         conn = get_connection()
         c = conn.cursor()
         c.execute("DELETE FROM items WHERE id=?", (item_id,))
         conn.commit()
         conn.close()
-        messagebox.showinfo("Sukces", "Usunięto książkę.")
         load_items()
 
-    # --- Funkcja edycji książki ---
     def edit_item():
-        selection = listbox_items.curselection()
-        if not selection:
-            messagebox.showerror("Błąd", "Wybierz książkę do edycji!")
+        sel = tree_items.selection()
+        if not sel:
+            messagebox.showerror("Błąd", "Wybierz książkę!")
             return
 
-        item_data = listbox_items.get(selection[0]).split(".")
-        item_id = item_data[0]
-
+        item_id = sel[0]
         conn = get_connection()
         c = conn.cursor()
         c.execute("SELECT title, author, available FROM items WHERE id=?", (item_id,))
@@ -111,99 +124,112 @@ def show_admin():
         conn.close()
 
         if not book:
-            messagebox.showerror("Błąd", "Nie znaleziono książki w bazie!")
             return
 
-        # Okno edycji
-        edit_window = tk.Toplevel(root)
-        edit_window.title("Edytuj książkę")
-        edit_window.geometry("400x200")
+        edit = tk.Toplevel(root)
+        edit.title("Edytuj książkę")
+        edit.geometry("380x220")
+        edit.configure(bg="#eceff1")
 
-        tk.Label(edit_window, text="Tytuł:").grid(row=0, column=0, sticky="e", pady=5, padx=5)
-        entry_edit_title = tk.Entry(edit_window, width=40)
-        entry_edit_title.grid(row=0, column=1, pady=5)
-        entry_edit_title.insert(0, book[0])
+        tk.Label(edit, text="Tytuł:", bg="#eceff1").grid(row=0, column=0, padx=5, pady=5)
+        et = tk.Entry(edit, width=40)
+        et.grid(row=0, column=1)
+        et.insert(0, book[0])
 
-        tk.Label(edit_window, text="Autor:").grid(row=1, column=0, sticky="e", pady=5, padx=5)
-        entry_edit_author = tk.Entry(edit_window, width=40)
-        entry_edit_author.grid(row=1, column=1, pady=5)
-        entry_edit_author.insert(0, book[1])
+        tk.Label(edit, text="Autor:", bg="#eceff1").grid(row=1, column=0, padx=5, pady=5)
+        ea = tk.Entry(edit, width=40)
+        ea.grid(row=1, column=1)
+        ea.insert(0, book[1])
 
-        tk.Label(edit_window, text="Status:").grid(row=2, column=0, sticky="e", pady=5, padx=5)
-        status_var = tk.StringVar()
-        status_var.set("Dostępny" if book[2] == 1 else "Wypożyczony")
-        tk.OptionMenu(edit_window, status_var, "Dostępny", "Wypożyczony").grid(row=2, column=1, pady=5, sticky="w")
+        tk.Label(edit, text="Status:", bg="#eceff1").grid(row=2, column=0, padx=5, pady=5)
+        st = tk.StringVar(value="Dostępny" if book[2] == 1 else "Wypożyczony")
+        ttk.Combobox(edit, textvariable=st, values=["Dostępny", "Wypożyczony"],
+                     state="readonly").grid(row=2, column=1, padx=5)
 
         def save_changes():
-            new_title = entry_edit_title.get()
-            new_author = entry_edit_author.get()
-            new_status = 1 if status_var.get() == "Dostępny" else 0
-
-            if not new_title:
-                messagebox.showerror("Błąd", "Tytuł jest wymagany!")
-                return
-
             conn = get_connection()
             c = conn.cursor()
             c.execute("UPDATE items SET title=?, author=?, available=? WHERE id=?",
-                      (new_title, new_author, new_status, item_id))
+                      (et.get(), ea.get(), 1 if st.get() == "Dostępny" else 0, item_id))
             conn.commit()
             conn.close()
-
-            messagebox.showinfo("Sukces", "Zaktualizowano książkę!")
-            edit_window.destroy()
             load_items()
+            edit.destroy()
 
-        tk.Button(edit_window, text="Zapisz zmiany", command=save_changes).grid(row=3, column=0, columnspan=2, pady=10)
+        tk.Button(edit, text="Zapisz", bg="#4caf50", fg="white",
+                  command=save_changes).grid(row=3, column=0, columnspan=2, pady=10)
 
-    # --- Układ GUI ---
 
-    # Górny frame dla dodawania książek
-    frame_add = tk.Frame(root, padx=10, pady=10)
-    frame_add.pack(fill="x")
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_columnconfigure(1, weight=3)
+    root.grid_rowconfigure(0, weight=1)
 
-    tk.Label(frame_add, text="Dodaj książkę:", font=("Arial", 12)).grid(row=0, column=0, columnspan=2, sticky="w")
-    tk.Label(frame_add, text="Tytuł:").grid(row=1, column=0, sticky="e", pady=2)
-    entry_title = tk.Entry(frame_add, width=40)
-    entry_title.grid(row=1, column=1, sticky="w", pady=2)
-    tk.Label(frame_add, text="Autor:").grid(row=2, column=0, sticky="e", pady=2)
-    entry_author = tk.Entry(frame_add, width=40)
-    entry_author.grid(row=2, column=1, sticky="w", pady=2)
-    tk.Button(frame_add, text="Dodaj książkę", command=add_item).grid(row=3, column=0, columnspan=2, pady=5)
+    # kolumna użytkownicy
 
-    # Środkowy frame dla list użytkowników i książek
-    frame_middle = tk.Frame(root, padx=10, pady=10)
-    frame_middle.pack(fill="both", expand=True)
+    frame_users = tk.LabelFrame(root, text="Użytkownicy", bg="#eceff1", padx=10, pady=10)
+    frame_users.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-    # Lista użytkowników po lewej
-    frame_users = tk.Frame(frame_middle)
-    frame_users.pack(side="left", fill="y", padx=(0, 20))
-    tk.Label(frame_users, text="Użytkownicy:", font=("Arial", 12)).pack()
-    listbox_users = tk.Listbox(frame_users, width=40)
-    listbox_users.pack(fill="y", expand=True)
+    frame_users.grid_rowconfigure(1, weight=1)
 
-    # Przyciski dla użytkowników po prawej
-    frame_user_buttons = tk.Frame(frame_middle)
-    frame_user_buttons.pack(side="left", fill="y")
-    tk.Button(frame_user_buttons, text="Odśwież", width=20, command=load_users).pack(pady=5)
-    tk.Button(frame_user_buttons, text="Nadaj admina", width=20, command=make_admin).pack(pady=5)
-    tk.Button(frame_user_buttons, text="Usuń użytkownika", width=20, command=delete_user).pack(pady=5)
+    tree_users = ttk.Treeview(frame_users, columns=("u", "r"), show="headings")
+    tree_users.heading("u", text="Nazwa")
+    tree_users.heading("r", text="Rola")
+    tree_users.grid(row=1, column=0, sticky="nsew", pady=5)
 
-    # Lista książek poniżej
-    frame_items = tk.Frame(root, padx=10, pady=10)
-    frame_items.pack(fill="both", expand=True)
-    tk.Label(frame_items, text="Książki:", font=("Arial", 12)).pack()
-    listbox_items = tk.Listbox(frame_items)
-    listbox_items.pack(fill="both", expand=True)
-    frame_item_buttons = tk.Frame(frame_items)
-    frame_item_buttons.pack(pady=5)
-    tk.Button(frame_item_buttons, text="Odśwież listę książek", command=load_items).pack(side="left", padx=5)
-    tk.Button(frame_item_buttons, text="Usuń książkę", command=delete_item).pack(side="left", padx=5)
-    tk.Button(frame_item_buttons, text="Edytuj książkę", command=edit_item).pack(side="left", padx=5)
-    tk.Button(frame_item_buttons, text="Wyloguj", command=logout).pack(side="left", padx=5)
 
-    # --- Inicjalne ładowanie danych ---
+    user_buttons = tk.Frame(frame_users, bg="#eceff1")
+    user_buttons.grid(row=2, column=0, pady=5, sticky="ew")
+
+    ttk.Button(user_buttons, text="Odśwież", command=load_users).pack(side="left", padx=5)
+    ttk.Button(user_buttons, text="Nadaj admina", command=make_admin).pack(side="left", padx=5)
+    ttk.Button(user_buttons, text="Usuń", command=delete_user).pack(side="left", padx=5)
+
+    # prawa kolummna ksiązki
+
+    frame_items = tk.LabelFrame(root, text="Książki", bg="#eceff1", padx=10, pady=10)
+    frame_items.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+    frame_items.grid_rowconfigure(2, weight=1)
+
+    # wyszukiwarka
+    search_frame = tk.Frame(frame_items, bg="#eceff1")
+    search_frame.grid(row=0, column=0, sticky="ew")
+    entry_search = tk.Entry(search_frame, width=30)
+    entry_search.pack(side="left", padx=5)
+    tk.Button(search_frame, text="Szukaj", bg="#2196f3", fg="white",
+              command=search_items).pack(side="left", padx=5)
+
+    # drzewko
+    tree_items = ttk.Treeview(frame_items, columns=("t", "a", "s"), show="headings")
+    tree_items.heading("t", text="Tytuł")
+    tree_items.heading("a", text="Autor")
+    tree_items.heading("s", text="Status")
+    tree_items.grid(row=2, column=0, sticky="nsew", pady=5)
+
+    # dodawanie książki
+    add_frame = tk.Frame(frame_items, bg="#eceff1")
+    add_frame.grid(row=1, column=0, pady=5)
+    tk.Label(add_frame, text="Tytuł:", bg="#eceff1").grid(row=0, column=0)
+    entry_title = tk.Entry(add_frame, width=22)
+    entry_title.grid(row=0, column=1)
+    tk.Label(add_frame, text="Autor:", bg="#eceff1").grid(row=1, column=0)
+    entry_author = tk.Entry(add_frame, width=22)
+    entry_author.grid(row=1, column=1)
+    tk.Button(add_frame, text="Dodaj", bg="#4caf50", fg="white",
+              command=add_item).grid(row=2, column=0, columnspan=2, pady=5)
+
+    # przyciski zarządzania
+    item_btns = tk.Frame(frame_items, bg="#eceff1")
+    item_btns.grid(row=3, column=0, pady=5)
+    tk.Button(item_btns, text="Odśwież", bg="#607d8b", fg="white",
+              command=load_items).pack(side="left", padx=4)
+    tk.Button(item_btns, text="Usuń", bg="#f44336", fg="white",
+              command=delete_item).pack(side="left", padx=4)
+    tk.Button(item_btns, text="Edytuj", bg="#ff9800", fg="white",
+              command=edit_item).pack(side="left", padx=4)
+    tk.Button(item_btns, text="Wyloguj", bg="#9c27b0", fg="white",
+              command=logout).pack(side="left", padx=4)
+
     load_users()
     load_items()
-
     root.mainloop()
