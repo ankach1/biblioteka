@@ -70,4 +70,4 @@ def init_db():
     conn.close()
 
 def get_connection():
-    return sqlite3.connect(DB_NAME)
+    return sqlite3.connect(DB_NAME) 
